@@ -126,6 +126,14 @@ class Runtime {
     return external_failure_was_detected_.load(std::memory_order_relaxed);
   }
 
+  void SetSkippingRequested(bool requested) {
+    skipping_requested_.store(requested, std::memory_order_relaxed);
+  }
+
+  bool skipping_requested() const {
+    return skipping_requested_.load(std::memory_order_relaxed);
+  }
+
   void SetShouldTerminateOnNonFatalFailure(bool v) {
     should_terminate_on_non_fatal_failure_ = v;
   }
@@ -201,6 +209,11 @@ class Runtime {
   // To support in-process minimization for non-fatal failures we signal
   // suppress termination until we believe minimization is complete.
   bool should_terminate_on_non_fatal_failure_ = true;
+
+  // If true, will skip processing the the current test iteration if the test
+  // has started, or skip runningt the entire test if skipping was requested at
+  // the fixture setup.
+  std::atomic<bool> skipping_requested_{false};
 
   // If true, fuzzing should terminate as soon as possible.
   // Atomic because it is set from signal handlers.

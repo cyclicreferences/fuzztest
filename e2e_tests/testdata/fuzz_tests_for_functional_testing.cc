@@ -782,4 +782,47 @@ FUZZ_TEST(MySuite, LargeHeapAllocation)
         // 1 GiB
         1ULL << 30));
 
+class SkippedTestFixture {
+ public:
+  SkippedTestFixture() { fuzztest::SkipTestsOrCurrentInput(); }
+
+  void SkippedTest() {
+    std::cerr << "SkippedTest should not be run! Aborting" << std::endl;
+    std::abort();
+  }
+};
+FUZZ_TEST_F(SkippedTestFixture, SkippedTest);
+
+// A fuzz test that is expected to accept and skip some inputs before hitting
+// the crash.
+void SkipAndAcceptInputs(uint32_t input) {
+  static bool skipped_input = false;
+  static bool accepted_input = false;
+  // Crash only when `input` is 123456789.
+  if (input != 123456789) {
+    // The condition below should have fair chance to either pass or not.
+    if (input % 7 % 2 == 0) {
+      if (!skipped_input) {
+        skipped_input = true;
+        std::cerr << "Skipped input" << std::endl;
+      }
+      fuzztest::SkipTestsOrCurrentInput();
+    } else {
+      if (!accepted_input) {
+        accepted_input = true;
+        std::cerr << "Accepted input" << std::endl;
+      }
+    }
+    return;
+  }
+  // This introduces statefulness which is undesired in real fuzz tests, but
+  // here it makes it more reliable for functional testing.
+  if (skipped_input && accepted_input) {
+    std::abort();
+  }
+}
+// Due to the limitation of the fuzzing engine, there must be an accepted input
+// when initializing the corpus for fuzzing. So we provide one.
+FUZZ_TEST(MySuite, SkipAndAcceptInputs).WithSeeds({1});
+
 }  // namespace

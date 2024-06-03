@@ -154,6 +154,12 @@ inline std::vector<uint8_t> ToByteArray(std::string_view str) {
   return std::vector<uint8_t>(str.begin(), str.end());
 }
 
+// Skips the tests of the current fixture if called during the setup, otherwise
+// skips the current input, which will not be added to the corpus when fuzzing.
+inline void SkipTestsOrCurrentInput() {
+  internal::Runtime::instance().SetSkippingRequested(true);
+}
+
 }  // namespace fuzztest
 
 #endif  // FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_

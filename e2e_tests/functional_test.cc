@@ -603,6 +603,25 @@ TEST_F(UnitTestModeTest, TimeLimitFlagWorks) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixture) {
+  auto [status, std_out, std_err] =
+      Run("SkippedTestFixture.SkippedTest", kDefaultTargetBinary,
+          /*env=*/{},
+          /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  EXPECT_THAT(std_err, HasSubstr("Skipping SkippedTestFixture.SkippedTest"));
+  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest should not be run")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(UnitTestModeTest, InputsAreSkippedRunWhenRequestedInTests) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.SkipAndAcceptInputs", kDefaultTargetBinary,
+          /*env=*/{},
+          /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
+  EXPECT_THAT(std_err, HasSubstr("Accepted input"));
+}
+
 class GetRandomValueTest : public UnitTestModeTest {
  protected:
   int GetValueFromInnerTest(
@@ -1166,6 +1185,27 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+// This tests both the command line interface and the fuzzing logic. It is under
+// FuzzingModeCommandLineInterfaceTest so it can specify the command line.
+TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
+  TempDir corpus_dir;
+  // Although theoretically possible, it is extreme unlikely that the test would
+  // find the crash without saving some corpus.
+  auto [producer_status, producer_std_out, producer_std_err] =
+      RunWith({{"fuzz", "MySuite.SkipAndAcceptInputs"}, {"fuzz_for", "10s"}},
+              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
+
+  EXPECT_THAT(producer_std_err, HasSubstr("Skipped input"));
+  EXPECT_THAT(producer_std_err, HasSubstr("Accepted input"));
+
+  auto [replayer_status, replayer_std_out, replayer_std_err] =
+      RunWith({{"fuzz", "MySuite.SkipAndAcceptInputs"}},
+              {{"FUZZTEST_REPLAY", corpus_dir.dirname()}});
+
+  EXPECT_THAT(replayer_std_err, Not(HasSubstr("Skipped input")));
+  EXPECT_THAT(replayer_std_err, HasSubstr("Accepted input"));
+}
+
 std::string CentipedePath() {
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -1303,6 +1343,14 @@ TEST_P(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
   EXPECT_EQ(
       CountTargetRuns(std_err),
       CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
+}
+
+TEST_P(FuzzingModeFixtureTest, TestIsSkippedWhenRequestedInFixture) {
+  auto [status, std_out, std_err] =
+      Run("SkippedTestFixture.SkippedTest", /*iterations=*/10);
+  EXPECT_THAT(std_err, HasSubstr("Skipping SkippedTestFixture.SkippedTest"));
+  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest should not be run")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 INSTANTIATE_TEST_SUITE_P(FuzzingModeFixtureTestWithExecutionModel,
@@ -1701,6 +1749,15 @@ TEST_P(FuzzingModeCrashFindingTest,
   auto [status, std_out, std_err] =
       Run("AlternateSignalStackFixture."
           "StackCalculationWorksWithAlternateStackForSignalHandlers");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
+  ExpectTargetAbort(status, std_err);
+}
+
+TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedRunWhenRequestedInTests) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.SkipAndAcceptInputs", kDefaultTargetBinary);
+  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
+  EXPECT_THAT(std_err, HasSubstr("Accepted input"));
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }
