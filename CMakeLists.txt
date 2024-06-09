@@ -4,7 +4,7 @@ project(fuzztest)
 option(FUZZTEST_BUILD_TESTING "Building the tests." OFF)
 option(FUZZTEST_FUZZING_MODE "Building the fuzztest in fuzzing mode." OFF)
 set(FUZZTEST_COMPATIBILITY_MODE "" CACHE STRING "Compatibility mode. Available options: <empty>, libfuzzer")
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set (COMPILER_GCC 1)
